@@ -1,17 +1,18 @@
 # ☕ kafeined
 
-**A universal "keep-awake" skill for AI coding agents.** When you mention
-`/kafeined` (or `@kafeined`) in a task, your agent holds the machine awake —
-no auto-sleep, no idle logout, no shutdown — until the job is done, then
-releases the hold automatically.
+> My machine kept falling asleep in the middle of long AI agent runs — builds,
+> migrations, that one refactor that takes 40 minutes. So I fixed it. Sharing
+> it here in case your machine betrays you the same way.
 
-Works with **built-in OS facilities only**, nothing to install:
+**kafeined** is a tiny skill for AI coding agents. Drop `/kafeined` (or
+`@kafeined`) into your prompt and the agent holds your machine awake *before*
+it starts working, then releases the hold when it's done. No auto-sleep, no
+idle logout, no "display went to sleep" mid-task.
 
-| OS | Mechanism |
-|---|---|
-| macOS | `caffeinate` (idle-sleep assertion, self-expiring) |
-| Windows | PowerShell + Win32 `SetThreadExecutionState` |
-| Linux | `systemd-inhibit` (desktop fallback: `gnome-session-inhibit`) |
+```
+you: /kafeined migrate the db, fix the failing tests, then update the docs
+agent: ☕ holding machine awake (6h cap) → *does the work* → ☕ hold released
+```
 
 ## Install
 
@@ -20,45 +21,60 @@ npx skills add deanyouknow/kafeined
 ```
 
 The installer asks which agent(s) to install for (Claude Code, Cursor,
-OpenCode, Codex, ...) and copies the skill into that agent's skills directory.
+OpenCode, Codex, Freebuff, ...) and copies the skill over. That's it.
 
 ## Usage
 
-Mention the skill anywhere in your task:
+Just mention it anywhere in your task:
 
 ```
 /kafeined please refactor the auth module and run all the tests
-```
-
-or
-
-```
-@kafeined migrate the database, then update the docs
+@kafeined do a full dependency upgrade and tell me what breaks
 ```
 
 The agent will:
 
-1. **Before working:** run `kafeined start` → a tiny background holder keeps
-   the machine awake (system only; the screen may still sleep).
-2. **During work:** renew the hold if the session runs long.
-3. **When done:** run `kafeined stop` → the hold is released — even if the
-   task failed or was interrupted.
+1. **Before working:** start a tiny background holder that keeps the machine
+   awake (system only — your screen can still sleep normally).
+2. **During work:** renew the hold if the job runs long.
+3. **When done:** release the hold — even if the task failed or you hit Esc
+   halfway through.
 
-### Safety by design
+Want the screen kept on too (e.g. you're watching the agent work)? Say so:
+`/kafeined --display ...` or just ask in plain words.
 
-- **Hard cap:** the hold self-expires after **6 hours** (configurable with
-  `--hours N`). A crashed agent can never keep your machine awake forever.
-- **Idempotent:** `start` twice is harmless; `stop` without a hold is safe.
-- **System-only by default:** the screen is free to lock and turn off.
-  Pass `--display` (or ask the agent) to keep the screen on too.
-- **No admin rights, no downloads, no daemons.**
+## Why it works this way
 
-## Manual control
+There's no universal "don't sleep" command, but every OS already ships one,
+so kafeined just uses whatever your machine has — **nothing to install, no
+admin rights, no third-party anything**:
 
-You don't need the agent — run it yourself:
+| OS | What it uses |
+|---|---|
+| macOS | `caffeinate` |
+| Windows | PowerShell + Win32 `SetThreadExecutionState` |
+| Linux | `systemd-inhibit` (or `gnome-session-inhibit` on desktops) |
+
+Instead of wrapping every command, it spawns one small **holder process** with
+a pid file under `${TMPDIR:-/tmp}/kafeined/`. That fits how agents actually
+work — dozens of short tool calls instead of one long command.
+
+## Safety
+
+I didn't want a bug keeping my laptop awake overnight, so:
+
+- **Hard cap:** the hold auto-expires after **6 hours** (`--hours N` to
+  change). A crashed agent can't hold your machine hostage.
+- **Idempotent:** `start` twice is harmless, `stop` with nothing held is safe.
+- **Always releases:** success, failure, or interrupt — the skill tells the
+  agent to stop the hold as its final step.
+- **System-only by default:** your screen locks and dims like normal.
+
+## Without an agent
+
+It's just a script, run it yourself:
 
 ```bash
-# macOS / Linux / Windows (Git Bash)
 bash scripts/kafeined.sh start            # hold awake (6h cap)
 bash scripts/kafeined.sh start --hours 2  # custom cap
 bash scripts/kafeined.sh status           # is it holding?
@@ -66,28 +82,23 @@ bash scripts/kafeined.sh stop             # release
 
 # Windows (PowerShell)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 start
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 status
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 stop
 ```
 
-## How it works
+## Testing
 
-`kafeined` spawns a small **holder process** that owns an OS-level
-"system required" execution assertion, independent of any single command. That
-fits how agents actually work — many short tool calls instead of one long
-process — unlike wrapper-style tools such as `caffeinate <command>`. The
-holder writes a pid file to `${TMPDIR:-/tmp}/kafeined/`, and `stop` kills it.
-The assertion expires on its own at the hard cap as a last-resort safety net.
+No CI here (it's two scripts, not a startup). If you want to check it works
+on your machine:
 
-## Notes & limits
+```bash
+bash scripts/smoke-test.sh
+```
+
+## Known limits (honesty section)
 
 - Closing the laptop lid or a critically low battery can still suspend the
-  machine — no userspace program can prevent that.
-- On macOS the default (`-i`) prevents **system** idle sleep; pass
-  `--display` to also keep the screen awake (`-id`).
-- On Linux without systemd, logind idle actions may not be covered; the
-  scripts use `gnome-session-inhibit` when available for desktop sessions.
+  machine — no program can stop that, and I'm not going to pretend otherwise.
+- On Linux without systemd, some idle actions may not be covered.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — take it, break it, fork it.

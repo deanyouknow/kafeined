@@ -3,3 +3,8 @@
 Thumbs.db
 *.log
 node_modules/
+
+# local test installs of skills (including this one)
+.agents/
+.claude/
+skills-lock.json
