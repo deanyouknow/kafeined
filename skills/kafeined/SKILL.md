@@ -15,41 +15,51 @@ main task**, and always release the hold **when the task ends**.
 Scripts live next to this file in `scripts/`:
 
 - macOS / Linux / Windows-GitBash: `scripts/kafeined.sh` — run with `bash`
-- Windows PowerShell: `scripts/kafeined.ps1`
+- Windows PowerShell: `scripts/kafeined.ps1` (or `scripts/kafeined.cmd` from cmd)
 
 Paths below use `$SKILL_DIR` = the directory containing this SKILL.md.
 
-## 1. START the hold (before doing any real work)
+## 1. Parse the user's request
 
-Resolve `$SKILL_DIR`, then run exactly one of:
+From the user's message, extract:
+
+- **Duration** — if the user wrote something like `2h`, `30min`, "for an hour",
+  use it (rounded up to whole hours; minimum 1). Pass it as `--hours N`.
+  If nothing is specified, use the default (no flag) — 6 hours.
+- **Screen** — if the user asks to keep the *screen/display* on too, add
+  `--display`. Otherwise never pass it.
+
+## 2. START the hold (before doing any real work)
 
 macOS / Linux (and Windows agents running inside Git Bash):
 
 ```bash
-bash "<SKILL_DIR>/scripts/kafeined.sh" start
+bash "<SKILL_DIR>/scripts/kafeined.sh" start [--hours N] [--display]
 ```
 
 Windows (PowerShell):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>\scripts\kafeined.ps1" start
+powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>\scripts\kafeined.ps1" start [-Hours N] [-Display]
 ```
 
-- Expect `kafeined: holding machine awake (pid ..., cap 6h, ...)`. The hold is
+- Expect `kafeined: holding machine awake (pid ..., cap Nh, ...)`. The hold is
   idempotent — running `start` twice is harmless.
-- Default cap is 6 hours. If the user asks for a different duration, add
-  `--hours N` (bash) or `-Hours N` (PowerShell).
-- If the user asks to keep the **screen** on too, add `--display` / `-Display`.
-  Otherwise leave the screen free to sleep.
+- For a task that is a **single command** (e.g. one long build), prefer
+  `while` mode — it releases automatically:
 
-## 2. During long work
+  ```bash
+  bash "<SKILL_DIR>/scripts/kafeined.sh" while --hours 4 -- <command...>
+  ```
+
+## 3. During long work
 
 If your session runs long and the user's task is still unfinished, re-run the
 same `start` command roughly every 30–60 minutes (or run `renew`). It is
 idempotent; if the hold expired it simply starts a fresh one. You may briefly
 mention this in your narration, e.g. "renewed kafeined hold".
 
-## 3. STOP the hold (as the FINAL step — always, even on failure)
+## 4. STOP the hold (as the FINAL step — always, even on failure)
 
 When the task ends — completed, failed, or abandoned mid-way, including when
 the user interrupts you — run exactly one of:
@@ -68,10 +78,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<SKILL_DIR>\scripts\kafeine
 
 - Run `stop` in the same final tool block as your closing message so it is not
   forgotten. `stop` is safe to run when nothing is held.
-- Do **not** skip this: an unreleased hold keeps the machine from sleeping
-  until the cap expires.
 
-## 4. Status / troubleshooting
+**Closing ritual — mandatory.** Your final message must state the hold status
+in this format so the user can see it worked:
+
+- `☕ hold released` after a successful `stop`
+- `☕ hold active (cap Nh)` only if the user explicitly asked to keep the
+  machine awake after the task
+
+## 5. Status / troubleshooting
 
 - `status` prints `ACTIVE (pid ...)` and exits 0 when holding, or `inactive`
   and exits 1 when not. Use it if `start` behaves unexpectedly.

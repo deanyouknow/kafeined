@@ -1,0 +1,16 @@
+{
+  "name": "kafeined",
+  "owner": { "name": "deanyouknow" },
+  "plugins": [
+    {
+      "name": "kafeined",
+      "source": "./skills/kafeined",
+      "description": "Keep-awake guard for AI agent sessions — mention /kafeined and your agent holds the machine awake until the task is done, then releases.",
+      "version": "1.1.0",
+      "author": { "name": "deanyouknow" },
+      "homepage": "https://github.com/deanyouknow/kafeined",
+      "license": "MIT",
+      "keywords": ["keep-awake", "caffeinate", "agent-skills", "productivity"]
+    }
+  ]
+}
