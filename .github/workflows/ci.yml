@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check (bash -n)
+        shell: bash
+        run: bash -n scripts/kafeined.sh
+
+      - name: ShellCheck
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "installing shellcheck"
+            if [ "${RUNNER_OS}" = "Linux" ]; then
+              sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+            else
+              brew install shellcheck
+            fi
+          fi
+          shellcheck -S warning scripts/kafeined.sh scripts/smoke-test.sh
+
+  smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke test (bash)
+        shell: bash
+        run: bash scripts/smoke-test.sh
+
+      - name: Windows PowerShell smoke (start/status/stop)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 start
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 status
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 stop
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafeined.ps1 status

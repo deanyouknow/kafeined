@@ -1,0 +1,5 @@
+# Files that should never ship with the skill
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
